@@ -1,0 +1,37 @@
+name: Build downloadable Quest Helper test client
+on:
+  push:
+    branches:
+      - ci/tree-run-test-build
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Run tree-run tests
+        shell: pwsh
+        run: .\gradlew.bat test --tests "com.questhelper.helpers.mischelpers.farmruns.*" --no-daemon --console=plain
+      - name: Build runnable RuneLite jar
+        shell: pwsh
+        run: .\gradlew.bat shadowJar --no-daemon --console=plain
+      - name: Package Windows launch command
+        shell: pwsh
+        run: |
+          $jar = Get-ChildItem build\libs\*-all.jar | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item $jar.FullName package\QuestHelper-TreeRun-Test.jar
+          Set-Content -Path package\RUN_TREE_RUN_TEST.cmd -Encoding ASCII -Value '@echo off', 'cd /d "%~dp0"', 'java -ea -jar QuestHelper-TreeRun-Test.jar --developer-mode --debug', 'pause'
+          Set-Content -Path package\README.txt -Value 'Double-click RUN_TREE_RUN_TEST.cmd. Requires Java 17+. Close your normal RuneLite client first. Test Tree Run via Quest Helper.'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QuestHelper-TreeRun-Windows-Test
+          path: package/*
+          if-no-files-found: error
