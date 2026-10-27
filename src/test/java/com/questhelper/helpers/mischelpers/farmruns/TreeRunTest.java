@@ -246,4 +246,36 @@ class TreeRunTest extends MockedTest
 		assertFalse(items.stream().anyMatch(item -> item.getItemRequirement() == run.axe || item.getItemRequirement() == run.rake));
 	}
 
+
+	@Test
+	void noneSaplingSelectionDisablesRegularTreesWithoutInvalidItemIds()
+	{
+		values.put("treeSaplings", "NONE");
+		run.onGameTick(new GameTick());
+		assertEquals(0, run.allTreeSaplings.getQuantity());
+		assertEquals(0, run.allProtectionItemTree.getQuantity());
+		assertTrue(run.lumbridgeStates.getIsGrowing().check(client));
+		assertTrue(run.allTreeSaplings.getId() > 0);
+		assertTrue(run.treeSapling.getId() > 0);
+	}
+
+	@Test
+	void noneCalquatSelectionDisablesCalquatSupplies()
+	{
+		values.put("calquatTreeSaplings", "NONE");
+		run.onGameTick(new GameTick());
+		assertEquals(0, run.allCalquatSaplings.getQuantity());
+		assertEquals(0, run.allProtectionItemCalquat.getQuantity());
+		assertTrue(run.taiBwoWannaiStates.getIsGrowing().check(client));
+	}
+
+	@Test
+	void calquatFarmingLevelRequirementPreventsPlanningBelow72()
+	{
+		when(client.getRealSkillLevel(Skill.FARMING)).thenReturn(71);
+		when(client.getBoostedSkillLevel(Skill.FARMING)).thenReturn(71);
+		run.onGameTick(new GameTick());
+		assertEquals(0, run.allCalquatSaplings.getQuantity());
+		assertTrue(run.taiBwoWannaiStates.getIsGrowing().check(client));
+	}
 }
