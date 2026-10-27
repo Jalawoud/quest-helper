@@ -63,7 +63,7 @@ final class TreeRunOptions
 		DIRECT_TELEPORT, POH_NEXUS, POH_SPIRIT_TREE, POH_JEWELLERY_BOX,
 		POH_MOUNTED_DIGSITE, POH_FAIRY_RING, POH_OUTSIDE, REDIRECTED_HOUSE_TABLET,
 		SPIRIT_TREE_VIA_GE, ARDOUGNE_BOAT, WALK_FROM_FALADOR, WALK_FROM_BRIMHAVEN,
-		ROWBOAT_FROM_CORSAIR_COVE
+		ROWBOAT_FROM_CORSAIR_COVE, WALK_FROM_TAVERLEY_ROCKS
 	}
 	enum Category
 	{
@@ -81,7 +81,7 @@ final class TreeRunOptions
 		VARROCK("Varrock", Travel.DIRECT_TELEPORT, Travel.POH_NEXUS),
 		STRONGHOLD("Gnome Stronghold", Travel.SPIRIT_TREE_VIA_GE, Travel.POH_SPIRIT_TREE),
 		VILLAGE("Tree Gnome Village", Travel.SPIRIT_TREE_VIA_GE, Travel.POH_SPIRIT_TREE, Travel.POH_FAIRY_RING),
-		CATHERBY("Catherby", Travel.DIRECT_TELEPORT, Travel.POH_NEXUS),
+		CATHERBY("Catherby", Travel.DIRECT_TELEPORT, Travel.POH_NEXUS, Travel.WALK_FROM_TAVERLEY_ROCKS),
 		BRIMHAVEN("Brimhaven", Travel.ARDOUGNE_BOAT, Travel.REDIRECTED_HOUSE_TABLET, Travel.POH_SPIRIT_TREE, Travel.POH_OUTSIDE),
 		TAI_BWO_WANNAI("Tai Bwo Wannai", Travel.WALK_FROM_BRIMHAVEN, Travel.DIRECT_TELEPORT, Travel.POH_FAIRY_RING),
 		LLETYA("Lletya", Travel.DIRECT_TELEPORT),
@@ -157,6 +157,7 @@ final class TreeRunOptions
 			case ARDOUGNE_BOAT: return "Ardougne teleport -> Captain Barnaby at the docks -> Brimhaven (30 coins).";
 			case WALK_FROM_FALADOR: return "Walk north-west from Falador to Taverley. To reach Falador: " + instruction(Destination.FALADOR);
 			case WALK_FROM_BRIMHAVEN: return "Walk south from the Brimhaven fruit tree to Tai Bwo Wannai. To reach Brimhaven: " + instruction(Destination.BRIMHAVEN);
+			case WALK_FROM_TAVERLEY_ROCKS: return "From Taverley, run south-west to the rocks on White Wolf Mountain; climb down west to the Catherby fruit tree (68 Agility, no grapple). To reach Taverley: " + instruction(Destination.TAVERLEY);
 			case ROWBOAT_FROM_CORSAIR_COVE: return "POH nexus/portal -> Watchtower; run to Corsair Cove -> your built rowboat to Anglers' Retreat. Requires the rowboat and 51 Sailing.";
 			default:
 				switch (destination)
@@ -211,6 +212,7 @@ final class TreeRunOptions
 		int houseVisits = 0;
 		java.util.Set<Destination> journeys = new java.util.LinkedHashSet<>();
 		destinations.forEach(journeys::add);
+		if (journeys.contains(Destination.CATHERBY) && travel(Destination.CATHERBY) == Travel.WALK_FROM_TAVERLEY_ROCKS) journeys.add(Destination.TAVERLEY);
 		if (journeys.contains(Destination.TAI_BWO_WANNAI) && travel(Destination.TAI_BWO_WANNAI) == Travel.WALK_FROM_BRIMHAVEN) journeys.add(Destination.BRIMHAVEN);
 		if (journeys.contains(Destination.TAVERLEY) && travel(Destination.TAVERLEY) == Travel.WALK_FROM_FALADOR) journeys.add(Destination.FALADOR);
 		if (journeys.stream().anyMatch(d -> travel(d) == Travel.SPIRIT_TREE_VIA_GE)) journeys.add(Destination.VARROCK);
@@ -223,7 +225,7 @@ final class TreeRunOptions
 				case POH_MOUNTED_DIGSITE: case POH_FAIRY_RING: case POH_OUTSIDE: case ROWBOAT_FROM_CORSAIR_COVE:
 					houseVisits++;
 					break;
-				case WALK_FROM_FALADOR: case WALK_FROM_BRIMHAVEN:
+				case WALK_FROM_FALADOR: case WALK_FROM_BRIMHAVEN: case WALK_FROM_TAVERLEY_ROCKS:
 					// Their prerequisite destination was added above, even if its patch is skipped/growing.
 					break;
 				case REDIRECTED_HOUSE_TABLET:
