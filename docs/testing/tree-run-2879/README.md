@@ -1,34 +1,27 @@
-# Tree-run gameplay feedback — 27 October 2026
+# Tree-run gameplay evidence
 
-The user tested PR #2879 at commit `4f97671a7585c35f4b8bf5b33df9172080ae2b6c` in the game.
-These are the original screenshots supplied by the tester, published with their permission.
-They document the prior build; they are not evidence of gameplay testing the follow-up fixes.
+These screenshots were supplied by the player from the October 30 run of the earlier build. They show bank preparation, progression through regular and fruit tree patches, and completion at Kastori. They are evidence of that gameplay run; the follow-up fixes were validated separately with automated tests.
 
-## Settings during the run
+## Bank preparation
+![Quest Helper bank supplies and tree-run inventory](04-bank-preparation.png)
 
-Yew, palm and mahogany trees; calquat enabled; paid removal; ultracompost;
-bottomless bucket; rake skipped; selected POH travel methods.
+## Farming Guild
+![Farming Guild fruit-tree step after planting and composting the regular tree](05-farming-guild.png)
 
-![User test settings and run in progress](01-run-settings.png)
+## Nexus feedback
+![Lumbridge instructions still show generic Nexus guidance](06-nexus-feedback.png)
 
-## End of the run
+The player reported missing remembered shortcuts after opening the Nexus. The follow-up accepts keys separated from destination text by whitespace and keys rendered in separate widgets on the same row, in addition to the existing colon format. It preserves per-character storage and invalidation when configuring the Nexus.
 
-The helper reaches “Wait for your trees to grow”. The chat shows planting and
-ultracompost messages. This demonstrates progression through the tested run;
-it does not establish that every route or setting has been exercised.
+## Run completed at Kastori
+![Wait-for-growth step, selected settings and planting/compost messages](07-run-completed.png)
 
-![User reaches the waiting-for-growth step](03-run-completed.png)
+The final screenshot shows the helper reaching “Wait for your trees to grow”, with chat messages for following the mountain guide to Quetzecalli Gorge, planting and composting the fruit tree and calquat.
 
-## Feedback addressed by the follow-up
+## Follow-up fixes
+- Refresh selected route instructions on the next game tick even when no config event arrives.
+- Keep both Stronghold patches local from the spirit-tree arrival area; omit unnecessary teleport supplies for destinations already reached.
+- Add Kastori travel choice `Mountain Guide Quetzal`. It uses the selected Nemus/Auburnvale arrival route (select POH Fairy Ring for AIS), then the mountain guide and nearby quetzal. Once at Auburnvale, it stops recommending a return to the house.
+- Add regression tests for route changes, Nexus text/widget formats, Stronghold arrival, and continuation from Auburnvale.
 
-- Keep walking between nearby patches, including both Gnome Stronghold patches.
-- Remember observed Nexus hotkeys in the current RS profile; invalidate them when
-  opening the Nexus configuration and relearn from the next teleport menu.
-- Add the Taverley-to-Catherby rocks route (68 Agility, barehanded).
-- Prevent Shortest Path from replacing selected arrival instructions with its own
-  POH route. The farm helper requests walking-only paths once near the destination;
-  until then its selected transport instructions remain in the Quest Helper panel.
-- Include the CKR-to-calquat walk in local arrival detection.
-
-The follow-up changes have automated regression coverage; gameplay testing of
-those changes remains pending. No claim that the assistant played the game is made.
+Validation: [GitHub Actions run 41099902031](https://github.com/Jalawoud/quest-helper/actions/runs/41099902031) passed the farm-run test suite and built the runnable client for code commit `f55b3d4`. The new follow-up behavior still needs an in-game retest; the screenshots above predate those fixes.
