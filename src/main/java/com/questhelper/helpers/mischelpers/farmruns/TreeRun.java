@@ -114,6 +114,9 @@ public class TreeRun extends ComplexStateQuestHelper
 	private final ManualRequirement showCoins = new ManualRequirement();
 	private final ManualRequirement showRake = new ManualRequirement();
 	private final Map<Destination, String> nexusKeys = new LinkedHashMap<>();
+	private final Set<PatchChoice> nearbyChoices = new HashSet<>();
+	private boolean rocksAvailable;
+	private String lastRouteSignature = "";
 
 	private static final class PatchChoice
 	{
@@ -261,6 +264,7 @@ public class TreeRun extends ComplexStateQuestHelper
 		originalStepText.clear();
 		previousStates.clear();
 		replantedThisRun.clear();
+		nearbyChoices.clear();
 		setupSteps();
 		farmingHandler = new FarmingHandler(client, configManager);
 
@@ -1349,17 +1353,19 @@ public class TreeRun extends ComplexStateQuestHelper
 	{
 		if (farmingHandler == null) return;
 		refreshSupplies();
-		Map<Destination, String> displayedKeys = new LinkedHashMap<>();
-		for (Destination destination : Destination.values())
+		Map<Destination, String> displayedKeys = TreeRunNexusMenu.rememberedHotkeys(client, configManager);
+		Set<PatchChoice> nearby = new HashSet<>();
+		for (PatchChoice choice : patchChoices.values()) if (isNearDestination(choice.destination)) nearby.add(choice);
+		boolean canUseRocks = canUseRocks();
+		String routeSignature = options.routeSignature();
+		if (!routeSignature.equals(lastRouteSignature) || !displayedKeys.equals(nexusKeys) || !nearby.equals(nearbyChoices) || canUseRocks != rocksAvailable)
 		{
-			if (options.travel(destination) != TreeRunOptions.Travel.POH_NEXUS) continue;
-			String key = TreeRunNexusMenu.hotkey(client, destination.label);
-			if (key != null) displayedKeys.put(destination, key);
-		}
-		if (!displayedKeys.equals(nexusKeys))
-		{
+			lastRouteSignature = routeSignature;
+			rocksAvailable = canUseRocks;
 			nexusKeys.clear();
 			nexusKeys.putAll(displayedKeys);
+			nearbyChoices.clear();
+			nearbyChoices.addAll(nearby);
 			refreshRunOptions();
 		}
 	}
@@ -1373,7 +1379,10 @@ public class TreeRun extends ComplexStateQuestHelper
 		handleTreePatches(PatchImplementation.FRUIT_TREE, farmingWorld.getTabs().get(Tab.FRUIT_TREE), allFruitSaplings, allProtectionItemFruitTree, protectionItemFruitTree, neededDestinations);
 		handleTreePatches(PatchImplementation.CALQUAT, farmingWorld.getTabs().get(Tab.FRUIT_TREE), allCalquatSaplings, allProtectionItemCalquat, protectionItemCalquat, neededDestinations);
 		handleTreePatches(PatchImplementation.HARDWOOD_TREE, farmingWorld.getTabs().get(Tab.TREE), allHardwoodSaplings, allProtectionItemHardwood, protectionItemHardwood, neededDestinations);
-		selectedTravelItems = options.travelItems(neededDestinations);
+		Set<Destination> arrived = new HashSet<>();
+		for (Destination destination : Destination.values()) if (isNearDestination(destination)) arrived.add(destination);
+		neededDestinations.removeAll(arrived);
+		selectedTravelItems = options.travelItems(neededDestinations, arrived);
 		int fares = selectedTravelItems.stream().filter(i -> i.getId() == ItemID.COINS).mapToInt(ItemRequirement::getQuantity).sum();
 		selectedTravelItems.removeIf(i -> i.getId() == ItemID.COINS);
 		coins.setQuantity(coins.getQuantity() + fares);
@@ -1547,22 +1556,77 @@ public class TreeRun extends ComplexStateQuestHelper
 		patchChoices.put(states, choice);
 	}
 
+	private boolean isNearDestination(Destination destination)
+	{
+		if (client.getLocalPlayer() == null) return false;
+		WorldPoint player = client.getLocalPlayer().getWorldLocation();
+		if (player == null) return false;
+		return patchChoices.values().stream().filter(choice -> choice.destination == destination)
+			.anyMatch(choice -> {
+				WorldPoint patch = choice.compostStep.getDefinedPoint().getWorldPoint();
+				if (patch.distanceTo(player) <= 64) return true;
+				// Include the spirit-tree arrival and the walk between both Stronghold patches.
+				if (destination == Destination.STRONGHOLD && player.getPlane() == 0
+					&& player.getX() >= 2420 && player.getX() <= 2500
+					&& player.getY() >= 3400 && player.getY() <= 3470) return true;
+				// CKR is farther than 64 tiles from the calquat. Include the walk between
+				// the ring and patch so arriving at CKR does not suggest teleporting again.
+				return destination == Destination.TAI_BWO_WANNAI
+					&& options.travel(destination) == TreeRunOptions.Travel.POH_FAIRY_RING
+					&& player.getPlane() == 0 && player.getX() >= Math.min(2801, patch.getX()) - 12
+					&& player.getX() <= Math.max(2801, patch.getX()) + 12
+					&& player.getY() >= Math.min(3003, patch.getY()) - 12
+					&& player.getY() <= Math.max(3003, patch.getY()) + 12;
+			});
+	}
+
+	private boolean canUseRocks()
+	{
+		return Math.max(client.getRealSkillLevel(Skill.AGILITY), client.getBoostedSkillLevel(Skill.AGILITY)) >= 68;
+	}
+
+	private Map<String, Object> walkingPathConfig()
+	{
+		Map<String, Object> config = new HashMap<>();
+		config.put("useTeleportationItems", "None");
+		for (String key : Arrays.asList("useTeleportationSpells", "useTeleportationSpellsHome",
+			"useTeleportationMinigames", "useTeleportationPortals", "useTeleportationLevers",
+			"usePoh", "useSpiritTrees", "useFairyRings", "useWildernessObelisks")) config.put(key, false);
+		config.put("useAgilityShortcuts", true);
+		return config;
+	}
+
 	private void refreshRunOptions()
 	{
 		for (PatchChoice choice : patchChoices.values())
 		{
-			List<ItemRequirement> travelItems = options.travelItems(Collections.singleton(choice.destination));
+			boolean local = isNearDestination(choice.destination);
+			boolean rocks = options.travel(choice.destination) == TreeRunOptions.Travel.WALK_FROM_TAVERLEY_ROCKS;
+			boolean canUseRocks = canUseRocks();
+			boolean walkingFromTaverley = rocks && canUseRocks && isNearDestination(Destination.TAVERLEY);
+			boolean guideFromNemus = options.travel(choice.destination) == TreeRunOptions.Travel.MOUNTAIN_GUIDE_QUETZAL
+				&& isNearDestination(Destination.NEMUS);
+			List<ItemRequirement> travelItems = local || walkingFromTaverley || guideFromNemus ? Collections.emptyList()
+				: options.travelItems(Collections.singleton(choice.destination));
 			for (DetailedQuestStep instruction : choice.instructions)
 			{
 				List<String> text = new ArrayList<>(originalStepText.get(instruction));
-				text.add(options.instruction(choice.destination));
-				if (options.travel(choice.destination) == TreeRunOptions.Travel.POH_NEXUS && nexusKeys.containsKey(choice.destination))
-					text.add("Portal nexus: press " + nexusKeys.get(choice.destination) + " for " + choice.destination.label + " (menu open).");
+				if (local) text.add("Already in " + choice.destination.label + ": walk to this patch; no teleport needed.");
+				else if (guideFromNemus) text.add("Follow the mountain guide, then use the nearby quetzal to Kastori and walk to the farming patches. Unlock the quetzal destination first; no house teleport needed.");
+				else if (walkingFromTaverley) text.add("Run south-west to the White Wolf Mountain rocks; climb down west to the Catherby fruit tree (68 Agility). No teleport needed.");
+				else if (rocks && !canUseRocks) text.add("This rocks route requires 68 Agility. Choose Direct teleport or POH nexus instead.");
+				else text.add(options.instruction(choice.destination));
+				if (!local && options.travel(choice.destination) == TreeRunOptions.Travel.POH_NEXUS && nexusKeys.containsKey(choice.destination))
+					text.add("Portal nexus: press " + nexusKeys.get(choice.destination) + " for " + choice.destination.label + " (last seen; reopen the menu after reordering).");
 				if (isComposting()) text.add("After planting, apply " + options.compostType().name().toLowerCase() + ".");
 				instruction.setText(text);
 				instruction.getTeleport().clear();
 				instruction.getTeleport().addAll(travelItems);
+				// Selected arrival transport is described above. Let Shortest Path draw only
+				// the local walk, so its independent POH choices cannot contradict that route.
+				instruction.configureShortestPath(local || walkingFromTaverley, walkingPathConfig());
 			}
+			choice.compostStep.configureShortestPath(local, walkingPathConfig());
 			choice.compostStep.setText((options.compostSource() == CompostSource.LEPRECHAUN_STORAGE
 				? "Withdraw " + options.compostType().name().toLowerCase() + " from the nearby tool leprechaun, then apply it to this tree."
 				: "Apply " + options.compostType().name().toLowerCase() + " to this newly planted tree.")

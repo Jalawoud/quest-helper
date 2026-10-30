@@ -152,4 +152,25 @@ class TreeRunOptionsTest
 		assertTrue(options.instruction(Destination.KASTORI).contains("AIS"));
 		assertTrue(options.instruction(Destination.KASTORI).contains("Achilka"));
 	}
+	@Test
+	void catherbyRocksCountsTheSelectedTaverleyArrivalOnlyOnce()
+	{
+		values.put(Destination.CATHERBY.key(), Travel.WALK_FROM_TAVERLEY_ROCKS.name());
+		values.put(Destination.TAVERLEY.key(), Travel.REDIRECTED_HOUSE_TABLET.name());
+		List<ItemRequirement> items = options.travelItems(Arrays.asList(Destination.TAVERLEY, Destination.CATHERBY));
+		assertEquals(1, count(items, ItemID.NZONE_TELETAB_TAVERLEY));
+		assertEquals(0, count(items, ItemID.LUNAR_TABLET_CATHERBY_TELEPORT));
+		assertEquals(0, count(items, ItemID.POH_TABLET_TELEPORTTOHOUSE));
+		assertEquals(1, count(options.travelItems(Arrays.asList(Destination.CATHERBY)), ItemID.NZONE_TELETAB_TAVERLEY));
+	}
+
+	@Test
+	void catherbyRocksResolvesWalkingTaverleyDependencyThroughFalador()
+	{
+		values.put(Destination.CATHERBY.key(), Travel.WALK_FROM_TAVERLEY_ROCKS.name());
+		values.put(Destination.TAVERLEY.key(), Travel.WALK_FROM_FALADOR.name());
+		values.put(Destination.FALADOR.key(), Travel.POH_NEXUS.name());
+		assertEquals(1, count(options.travelItems(Arrays.asList(Destination.CATHERBY)), ItemID.POH_TABLET_TELEPORTTOHOUSE));
+	}
+
 }

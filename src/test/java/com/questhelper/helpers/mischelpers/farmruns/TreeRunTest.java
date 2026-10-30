@@ -278,4 +278,126 @@ class TreeRunTest extends MockedTest
 		assertEquals(0, run.allCalquatSaplings.getQuantity());
 		assertTrue(run.taiBwoWannaiStates.getIsGrowing().check(client));
 	}
+	private net.runelite.api.Player placePlayer(net.runelite.api.coords.WorldPoint point)
+	{
+		net.runelite.api.Player player = mock(net.runelite.api.Player.class);
+		when(client.getLocalPlayer()).thenReturn(player);
+		when(player.getWorldLocation()).thenReturn(point);
+		return player;
+	}
+
+	@Test
+	void bothStrongholdPatchesUseWalkingInstructionsOnceInsideStronghold()
+	{
+		values.put(Destination.STRONGHOLD.key(), Travel.POH_SPIRIT_TREE.name());
+		placePlayer(run.gnomeStrongholdFruitTreePatchPlant.getDefinedPoint().getWorldPoint());
+		run.onGameTick(new GameTick());
+		assertTrue(run.gnomeStrongholdTreePatchPlant.getText().stream().anyMatch(t -> t.contains("no teleport needed")));
+		assertTrue(run.gnomeStrongholdFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("no teleport needed")));
+		assertTrue(run.gnomeStrongholdTreePatchPlant.getTeleport().isEmpty());
+		assertTrue(run.gnomeStrongholdFruitTreePatchPlant.getTeleport().isEmpty());
+	}
+
+	@Test
+	void leavingStrongholdRestoresSelectedArrivalDirections()
+	{
+		values.put(Destination.STRONGHOLD.key(), Travel.POH_SPIRIT_TREE.name());
+		net.runelite.api.Player player = placePlayer(run.gnomeStrongholdTreePatchPlant.getDefinedPoint().getWorldPoint());
+		run.onGameTick(new GameTick());
+		when(player.getWorldLocation()).thenReturn(new net.runelite.api.coords.WorldPoint(3200, 3200, 0));
+		run.onGameTick(new GameTick());
+		assertTrue(run.gnomeStrongholdTreePatchPlant.getText().stream().anyMatch(t -> t.contains("POH spirit tree")));
+		assertFalse(run.gnomeStrongholdTreePatchPlant.getTeleport().isEmpty());
+	}
+
+	@Test
+	void catherbyRocksRouteWalksFromTaverleyWithoutAnotherTeleport()
+	{
+		values.put(Destination.CATHERBY.key(), Travel.WALK_FROM_TAVERLEY_ROCKS.name());
+		when(client.getRealSkillLevel(Skill.AGILITY)).thenReturn(68);
+		placePlayer(run.taverleyTreePatchPlant.getDefinedPoint().getWorldPoint());
+		run.onGameTick(new GameTick());
+		assertTrue(run.catherbyFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("rocks") && t.contains("No teleport needed")));
+		assertTrue(run.catherbyFruitTreePatchPlant.getTeleport().isEmpty());
+	}
+
+	@Test
+	void catherbyRocksRouteExplainsMissingAgilityInsteadOfClaimingItIsUsable()
+	{
+		values.put(Destination.CATHERBY.key(), Travel.WALK_FROM_TAVERLEY_ROCKS.name());
+		placePlayer(run.taverleyTreePatchPlant.getDefinedPoint().getWorldPoint());
+		run.onGameTick(new GameTick());
+		assertTrue(run.catherbyFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("requires 68 Agility")));
+	}
+
+	@Test
+	void ckrArrivalShowsOnlyTheLocalWalkAndForbidsCompetingTeleports()
+	{
+		values.put(Destination.TAI_BWO_WANNAI.key(), Travel.POH_FAIRY_RING.name());
+		placePlayer(new net.runelite.api.coords.WorldPoint(2801, 3003, 0));
+		run.setConfig(questHelperConfig);
+		when(questHelperConfig.useShortestPath()).thenReturn(true);
+		run.onGameTick(new GameTick());
+		assertTrue(run.taiBwoWannaiCalquatPatchCheckHealth.getTeleport().isEmpty());
+		assertTrue(run.taiBwoWannaiCalquatPatchCheckHealth.getText().stream().anyMatch(t -> t.contains("no teleport needed")));
+		injector.injectMembers(run.taiBwoWannaiCalquatPatchCheckHealth);
+		clearInvocations(eventBus);
+		run.taiBwoWannaiCalquatPatchCheckHealth.setShortestPath();
+		org.mockito.ArgumentCaptor<net.runelite.client.events.PluginMessage> message = org.mockito.ArgumentCaptor.forClass(net.runelite.client.events.PluginMessage.class);
+		verify(eventBus).post(message.capture());
+		Map<?, ?> overrides = (Map<?, ?>) message.getValue().getData().get("config");
+		assertEquals("None", overrides.get("useTeleportationItems"));
+		assertEquals(false, overrides.get("usePoh"));
+		assertEquals(false, overrides.get("useTeleportationSpells"));
+	}
+
+	@Test
+	void remoteFairyRingStepDoesNotAskShortestPathForAnUnrelatedTeleport()
+	{
+		values.put(Destination.TAI_BWO_WANNAI.key(), Travel.POH_FAIRY_RING.name());
+		placePlayer(new net.runelite.api.coords.WorldPoint(3200, 3200, 0));
+		run.setConfig(questHelperConfig);
+		when(questHelperConfig.useShortestPath()).thenReturn(true);
+		run.onGameTick(new GameTick());
+		assertTrue(run.taiBwoWannaiCalquatPatchCheckHealth.getText().stream().anyMatch(t -> t.contains("CKR")));
+		injector.injectMembers(run.taiBwoWannaiCalquatPatchCheckHealth);
+		clearInvocations(eventBus);
+		run.taiBwoWannaiCalquatPatchCheckHealth.setShortestPath();
+		verifyNoInteractions(eventBus);
+	}
+
+
+	@Test
+	void routeChangesRefreshOnTickWithoutAConfigEvent()
+	{
+		values.put(Destination.KASTORI.key(), Travel.MOUNTAIN_GUIDE_QUETZAL.name());
+		values.put(Destination.NEMUS.key(), Travel.POH_FAIRY_RING.name());
+		run.onGameTick(new GameTick());
+		assertTrue(run.kastoriFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("mountain guide")));
+		values.put(Destination.KASTORI.key(), Travel.DIRECT_TELEPORT.name());
+		run.onGameTick(new GameTick());
+		assertTrue(run.kastoriFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("Pendant of Ates")));
+		assertFalse(run.kastoriFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("mountain guide")));
+	}
+
+	@Test
+	void spiritTreeArrivalDoesNotRecommendAnotherHouseTeleport()
+	{
+		values.put(Destination.STRONGHOLD.key(), Travel.POH_SPIRIT_TREE.name());
+		placePlayer(new net.runelite.api.coords.WorldPoint(2461, 3444, 0));
+		run.onGameTick(new GameTick());
+		assertTrue(run.gnomeStrongholdTreePatchPlant.getTeleport().isEmpty());
+		assertTrue(run.gnomeStrongholdFruitTreePatchPlant.getTeleport().isEmpty());
+	}
+
+	@Test
+	void guideRouteContinuesFromAuburnvaleWithoutReturningToHouse()
+	{
+		values.put(Destination.KASTORI.key(), Travel.MOUNTAIN_GUIDE_QUETZAL.name());
+		values.put(Destination.NEMUS.key(), Travel.POH_FAIRY_RING.name());
+		placePlayer(run.auburnvaleTreePatchPlant.getDefinedPoint().getWorldPoint());
+		run.onGameTick(new GameTick());
+		assertTrue(run.kastoriFruitTreePatchPlant.getTeleport().isEmpty());
+		assertTrue(run.kastoriFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("no house teleport needed")));
+	}
 }
