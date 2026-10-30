@@ -77,4 +77,30 @@ class TreeRunNexusMenuTest
 		assertFalse(keys.containsKey(TreeRunOptions.Destination.CATHERBY));
 	}
 
+
+	@Test
+	void readsWhitespaceSeparatedNativeShortcut()
+	{
+		Client client = mock(Client.class);
+		Widget root = mock(Widget.class);
+		when(client.getWidget(InterfaceID.TelenexusTeleport.UNIVERSE)).thenReturn(root);
+		when(root.getText()).thenReturn("<col=ffffff>G</col> Varrock");
+		assertEquals("G", TreeRunNexusMenu.hotkey(client, "Varrock"));
+	}
+
+	@Test
+	void readsSeparateShortcutAndDestinationWidgetsOnTheSameRow()
+	{
+		Client client = mock(Client.class);
+		Widget root = mock(Widget.class), key = mock(Widget.class), label = mock(Widget.class);
+		when(client.getWidget(InterfaceID.TelenexusTeleport.UNIVERSE)).thenReturn(root);
+		when(root.getDynamicChildren()).thenReturn(new Widget[]{key, label});
+		when(key.getText()).thenReturn("G:");
+		when(label.getText()).thenReturn("Varrock");
+		when(key.getRelativeX()).thenReturn(10);
+		when(label.getRelativeX()).thenReturn(30);
+		assertEquals("G", TreeRunNexusMenu.hotkey(client, "Varrock"));
+		when(key.getRelativeY()).thenReturn(20);
+		assertNull(TreeRunNexusMenu.hotkey(client, "Varrock"));
+	}
 }

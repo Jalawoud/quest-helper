@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 /** Read the player's displayed shortcut; never rewrite native menu labels or keybinds. */
 final class TreeRunNexusMenu
 {
-	private static final Pattern KEY = Pattern.compile("^([a-z0-9]|F(?:[1-9]|1[0-2]))\\s*[:.)]\\s*(.+)$", Pattern.CASE_INSENSITIVE);
+	private static final Pattern KEY = Pattern.compile("^([a-z0-9]|F(?:[1-9]|1[0-2]))(?:\\s*[:.)]\\s*|\\s+)(.+)$", Pattern.CASE_INSENSITIVE);
 
 	private static final String CACHE_KEY = "treeRunNexusHotkeys";
 
@@ -83,6 +83,24 @@ final class TreeRunNexusMenu
 		for (Widget[] group : children)
 		{
 			if (group == null) continue;
+			// Shortcut and destination may be separate widgets on the same row.
+			for (Widget label : group)
+			{
+				if (label == null || label.isHidden() || label.getText() == null
+					|| !Text.removeTags(label.getText()).trim().equalsIgnoreCase(destination)) continue;
+				String candidate = null;
+				for (Widget keyWidget : group)
+				{
+					if (keyWidget == null || keyWidget == label || keyWidget.isHidden()
+						|| keyWidget.getText() == null || keyWidget.getRelativeY() != label.getRelativeY()
+						|| keyWidget.getRelativeX() >= label.getRelativeX()) continue;
+					String value = Text.removeTags(keyWidget.getText()).trim().replaceFirst("[:.)]$", "").trim();
+					if (!value.matches("(?i)[a-z0-9]|F(?:[1-9]|1[0-2])")) continue;
+					if (candidate != null) { candidate = null; break; }
+					candidate = value.toUpperCase(java.util.Locale.ROOT);
+				}
+				if (candidate != null) return candidate;
+			}
 			for (Widget child : group)
 			{
 				String key = find(child, destination, visited);

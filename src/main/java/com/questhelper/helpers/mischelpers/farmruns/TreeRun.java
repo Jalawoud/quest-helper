@@ -116,6 +116,7 @@ public class TreeRun extends ComplexStateQuestHelper
 	private final Map<Destination, String> nexusKeys = new LinkedHashMap<>();
 	private final Set<PatchChoice> nearbyChoices = new HashSet<>();
 	private boolean rocksAvailable;
+	private String lastRouteSignature = "";
 
 	private static final class PatchChoice
 	{
@@ -1356,8 +1357,10 @@ public class TreeRun extends ComplexStateQuestHelper
 		Set<PatchChoice> nearby = new HashSet<>();
 		for (PatchChoice choice : patchChoices.values()) if (isNearDestination(choice.destination)) nearby.add(choice);
 		boolean canUseRocks = canUseRocks();
-		if (!displayedKeys.equals(nexusKeys) || !nearby.equals(nearbyChoices) || canUseRocks != rocksAvailable)
+		String routeSignature = options.routeSignature();
+		if (!routeSignature.equals(lastRouteSignature) || !displayedKeys.equals(nexusKeys) || !nearby.equals(nearbyChoices) || canUseRocks != rocksAvailable)
 		{
+			lastRouteSignature = routeSignature;
 			rocksAvailable = canUseRocks;
 			nexusKeys.clear();
 			nexusKeys.putAll(displayedKeys);
@@ -1376,7 +1379,10 @@ public class TreeRun extends ComplexStateQuestHelper
 		handleTreePatches(PatchImplementation.FRUIT_TREE, farmingWorld.getTabs().get(Tab.FRUIT_TREE), allFruitSaplings, allProtectionItemFruitTree, protectionItemFruitTree, neededDestinations);
 		handleTreePatches(PatchImplementation.CALQUAT, farmingWorld.getTabs().get(Tab.FRUIT_TREE), allCalquatSaplings, allProtectionItemCalquat, protectionItemCalquat, neededDestinations);
 		handleTreePatches(PatchImplementation.HARDWOOD_TREE, farmingWorld.getTabs().get(Tab.TREE), allHardwoodSaplings, allProtectionItemHardwood, protectionItemHardwood, neededDestinations);
-		selectedTravelItems = options.travelItems(neededDestinations);
+		Set<Destination> arrived = new HashSet<>();
+		for (Destination destination : Destination.values()) if (isNearDestination(destination)) arrived.add(destination);
+		neededDestinations.removeAll(arrived);
+		selectedTravelItems = options.travelItems(neededDestinations, arrived);
 		int fares = selectedTravelItems.stream().filter(i -> i.getId() == ItemID.COINS).mapToInt(ItemRequirement::getQuantity).sum();
 		selectedTravelItems.removeIf(i -> i.getId() == ItemID.COINS);
 		coins.setQuantity(coins.getQuantity() + fares);
@@ -1559,6 +1565,10 @@ public class TreeRun extends ComplexStateQuestHelper
 			.anyMatch(choice -> {
 				WorldPoint patch = choice.compostStep.getDefinedPoint().getWorldPoint();
 				if (patch.distanceTo(player) <= 64) return true;
+				// Include the spirit-tree arrival and the walk between both Stronghold patches.
+				if (destination == Destination.STRONGHOLD && player.getPlane() == 0
+					&& player.getX() >= 2420 && player.getX() <= 2500
+					&& player.getY() >= 3400 && player.getY() <= 3470) return true;
 				// CKR is farther than 64 tiles from the calquat. Include the walk between
 				// the ring and patch so arriving at CKR does not suggest teleporting again.
 				return destination == Destination.TAI_BWO_WANNAI
@@ -1594,12 +1604,15 @@ public class TreeRun extends ComplexStateQuestHelper
 			boolean rocks = options.travel(choice.destination) == TreeRunOptions.Travel.WALK_FROM_TAVERLEY_ROCKS;
 			boolean canUseRocks = canUseRocks();
 			boolean walkingFromTaverley = rocks && canUseRocks && isNearDestination(Destination.TAVERLEY);
-			List<ItemRequirement> travelItems = local || walkingFromTaverley ? Collections.emptyList()
+			boolean guideFromNemus = options.travel(choice.destination) == TreeRunOptions.Travel.MOUNTAIN_GUIDE_QUETZAL
+				&& isNearDestination(Destination.NEMUS);
+			List<ItemRequirement> travelItems = local || walkingFromTaverley || guideFromNemus ? Collections.emptyList()
 				: options.travelItems(Collections.singleton(choice.destination));
 			for (DetailedQuestStep instruction : choice.instructions)
 			{
 				List<String> text = new ArrayList<>(originalStepText.get(instruction));
 				if (local) text.add("Already in " + choice.destination.label + ": walk to this patch; no teleport needed.");
+				else if (guideFromNemus) text.add("Follow the mountain guide, then use the nearby quetzal to Kastori and walk to the farming patches. Unlock the quetzal destination first; no house teleport needed.");
 				else if (walkingFromTaverley) text.add("Run south-west to the White Wolf Mountain rocks; climb down west to the Catherby fruit tree (68 Agility). No teleport needed.");
 				else if (rocks && !canUseRocks) text.add("This rocks route requires 68 Agility. Choose Direct teleport or POH nexus instead.");
 				else text.add(options.instruction(choice.destination));

@@ -63,7 +63,7 @@ final class TreeRunOptions
 		DIRECT_TELEPORT, POH_NEXUS, POH_SPIRIT_TREE, POH_JEWELLERY_BOX,
 		POH_MOUNTED_DIGSITE, POH_FAIRY_RING, POH_OUTSIDE, REDIRECTED_HOUSE_TABLET,
 		SPIRIT_TREE_VIA_GE, ARDOUGNE_BOAT, WALK_FROM_FALADOR, WALK_FROM_BRIMHAVEN,
-		ROWBOAT_FROM_CORSAIR_COVE, WALK_FROM_TAVERLEY_ROCKS
+		ROWBOAT_FROM_CORSAIR_COVE, WALK_FROM_TAVERLEY_ROCKS, MOUNTAIN_GUIDE_QUETZAL
 	}
 	enum Category
 	{
@@ -88,7 +88,7 @@ final class TreeRunOptions
 		FOSSIL_ISLAND("Fossil Island", Travel.DIRECT_TELEPORT, Travel.POH_MOUNTED_DIGSITE),
 		SAVANNAH("Avium Savannah", Travel.POH_FAIRY_RING),
 		NEMUS("Nemus Retreat", Travel.DIRECT_TELEPORT, Travel.POH_FAIRY_RING),
-		KASTORI("Kastori", Travel.DIRECT_TELEPORT, Travel.POH_FAIRY_RING),
+		KASTORI("Kastori", Travel.DIRECT_TELEPORT, Travel.POH_FAIRY_RING, Travel.MOUNTAIN_GUIDE_QUETZAL),
 		ANGLERS("Anglers' Retreat", Travel.ROWBOAT_FROM_CORSAIR_COVE),
 		GREAT_CONCH("Great Conch", Travel.POH_FAIRY_RING);
 
@@ -123,6 +123,13 @@ final class TreeRunOptions
 		return Arrays.asList(destination.choices).contains(value) ? value : destination.choices[0];
 	}
 
+	String routeSignature()
+	{
+		StringBuilder value = new StringBuilder();
+		for (Destination destination : Destination.values()) value.append(travel(destination)).append(';');
+		return value.append(houseEntry()).append(';').append(compostType()).append(';').append(compostSource()).toString();
+	}
+
 	List<HelperConfig> configs()
 	{
 		List<HelperConfig> configs = new ArrayList<>();
@@ -155,6 +162,7 @@ final class TreeRunOptions
 			case SPIRIT_TREE_VIA_GE: return instruction(Destination.VARROCK) + " Walk to the Grand Exchange spirit tree -> " + destination.label +
 				(destination == Destination.VILLAGE ? "; follow Elkoy out of the maze." : ".");
 			case ARDOUGNE_BOAT: return "Ardougne teleport -> Captain Barnaby at the docks -> Brimhaven (30 coins).";
+			case MOUNTAIN_GUIDE_QUETZAL: return "From the Auburnvale tree patch, follow the mountain guide, then use the nearby quetzal to Kastori and walk to the farming patches. Unlock the quetzal destination first. To reach Auburnvale: " + instruction(Destination.NEMUS);
 			case WALK_FROM_FALADOR: return "Walk north-west from Falador to Taverley. To reach Falador: " + instruction(Destination.FALADOR);
 			case WALK_FROM_BRIMHAVEN: return "Walk south from the Brimhaven fruit tree to Tai Bwo Wannai. To reach Brimhaven: " + instruction(Destination.BRIMHAVEN);
 			case WALK_FROM_TAVERLEY_ROCKS: return "From Taverley, run south-west to the rocks on White Wolf Mountain; climb down west to the Catherby fruit tree (68 Agility, no grapple). To reach Taverley: " + instruction(Destination.TAVERLEY);
@@ -208,14 +216,21 @@ final class TreeRunOptions
 	/** Count consumables once per destination, and shared reusable items only once. */
 	List<ItemRequirement> travelItems(Iterable<Destination> destinations)
 	{
+		return travelItems(destinations, java.util.Collections.emptySet());
+	}
+
+	List<ItemRequirement> travelItems(Iterable<Destination> destinations, java.util.Set<Destination> arrived)
+	{
 		Map<Integer, ItemRequirement> items = new LinkedHashMap<>();
 		int houseVisits = 0;
 		java.util.Set<Destination> journeys = new java.util.LinkedHashSet<>();
 		destinations.forEach(journeys::add);
+		if (journeys.contains(Destination.KASTORI) && travel(Destination.KASTORI) == Travel.MOUNTAIN_GUIDE_QUETZAL) journeys.add(Destination.NEMUS);
 		if (journeys.contains(Destination.CATHERBY) && travel(Destination.CATHERBY) == Travel.WALK_FROM_TAVERLEY_ROCKS) journeys.add(Destination.TAVERLEY);
 		if (journeys.contains(Destination.TAI_BWO_WANNAI) && travel(Destination.TAI_BWO_WANNAI) == Travel.WALK_FROM_BRIMHAVEN) journeys.add(Destination.BRIMHAVEN);
 		if (journeys.contains(Destination.TAVERLEY) && travel(Destination.TAVERLEY) == Travel.WALK_FROM_FALADOR) journeys.add(Destination.FALADOR);
 		if (journeys.stream().anyMatch(d -> travel(d) == Travel.SPIRIT_TREE_VIA_GE)) journeys.add(Destination.VARROCK);
+		journeys.removeAll(arrived);
 		for (Destination destination : journeys)
 		{
 			Travel travel = travel(destination);
@@ -225,7 +240,7 @@ final class TreeRunOptions
 				case POH_MOUNTED_DIGSITE: case POH_FAIRY_RING: case POH_OUTSIDE: case ROWBOAT_FROM_CORSAIR_COVE:
 					houseVisits++;
 					break;
-				case WALK_FROM_FALADOR: case WALK_FROM_BRIMHAVEN: case WALK_FROM_TAVERLEY_ROCKS:
+				case MOUNTAIN_GUIDE_QUETZAL: case WALK_FROM_FALADOR: case WALK_FROM_BRIMHAVEN: case WALK_FROM_TAVERLEY_ROCKS:
 					// Their prerequisite destination was added above, even if its patch is skipped/growing.
 					break;
 				case REDIRECTED_HOUSE_TABLET:

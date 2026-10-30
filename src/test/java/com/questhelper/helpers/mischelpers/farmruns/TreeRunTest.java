@@ -366,4 +366,38 @@ class TreeRunTest extends MockedTest
 		verifyNoInteractions(eventBus);
 	}
 
+
+	@Test
+	void routeChangesRefreshOnTickWithoutAConfigEvent()
+	{
+		values.put(Destination.KASTORI.key(), Travel.MOUNTAIN_GUIDE_QUETZAL.name());
+		values.put(Destination.NEMUS.key(), Travel.POH_FAIRY_RING.name());
+		run.onGameTick(new GameTick());
+		assertTrue(run.kastoriFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("mountain guide")));
+		values.put(Destination.KASTORI.key(), Travel.DIRECT_TELEPORT.name());
+		run.onGameTick(new GameTick());
+		assertTrue(run.kastoriFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("Pendant of Ates")));
+		assertFalse(run.kastoriFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("mountain guide")));
+	}
+
+	@Test
+	void spiritTreeArrivalDoesNotRecommendAnotherHouseTeleport()
+	{
+		values.put(Destination.STRONGHOLD.key(), Travel.POH_SPIRIT_TREE.name());
+		placePlayer(new net.runelite.api.coords.WorldPoint(2461, 3444, 0));
+		run.onGameTick(new GameTick());
+		assertTrue(run.gnomeStrongholdTreePatchPlant.getTeleport().isEmpty());
+		assertTrue(run.gnomeStrongholdFruitTreePatchPlant.getTeleport().isEmpty());
+	}
+
+	@Test
+	void guideRouteContinuesFromAuburnvaleWithoutReturningToHouse()
+	{
+		values.put(Destination.KASTORI.key(), Travel.MOUNTAIN_GUIDE_QUETZAL.name());
+		values.put(Destination.NEMUS.key(), Travel.POH_FAIRY_RING.name());
+		placePlayer(run.auburnvaleTreePatchPlant.getDefinedPoint().getWorldPoint());
+		run.onGameTick(new GameTick());
+		assertTrue(run.kastoriFruitTreePatchPlant.getTeleport().isEmpty());
+		assertTrue(run.kastoriFruitTreePatchPlant.getText().stream().anyMatch(t -> t.contains("no house teleport needed")));
+	}
 }
